@@ -4,8 +4,8 @@ meta:
   engineVersion: 264.0.2-fix-physics
   forkId: ""
   forkVersion: ""
-  time: 07/04/2026 10:05:47
-  entityCount: 22464
+  time: 07/12/2026 09:19:37
+  entityCount: 22479
 maps:
 - 1
 grids:
@@ -99752,7 +99752,7 @@ entities:
   - uid: 7876
     components:
     - type: MetaData
-      name: Survivor Camp
+      name: Cargo Comms Relay
     - type: Transform
       pos: 78.5,12.5
       parent: 1
