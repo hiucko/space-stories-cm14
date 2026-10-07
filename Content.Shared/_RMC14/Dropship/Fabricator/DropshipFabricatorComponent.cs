@@ -23,6 +23,9 @@ public sealed partial class DropshipFabricatorComponent : Component
     public List<DropshipFabricatorQueueEntry> Queue = new();
 
     [DataField, AutoNetworkedField]
+    public Dictionary<EntProtoId, int> Purchases = new();
+
+    [DataField, AutoNetworkedField]
     public int MaxQueue = 6;
 
     [DataField(customTypeSerializer: typeof(TimeOffsetSerializer)), AutoNetworkedField, AutoPausedField]

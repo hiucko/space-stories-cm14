@@ -115,21 +115,46 @@ public sealed class DropshipFabricatorSystem : EntitySystem
             return;
         }
 
-        if (printable.Cost > points.Points)
+        EntProtoId id = proto.ID;
+        var price = GetPrice(points, proto.ID, printable);
+
+        if (price > points.Points)
         {
             _popup.PopupClient(Loc.GetString("rmc-dropship-fabricator-insufficient-points"), actor, actor, PopupType.SmallCaution);
             return;
         }
 
-        points.Points -= printable.Cost;
+        points.Points -= price;
+        points.Purchases[id] = points.Purchases.GetValueOrDefault(id) + 1;
         Dirty(ent.Comp.Account.Value, points);
         SendUIStateAll(points.Points);
 
-        ent.Comp.Queue.Add(new DropshipFabricatorQueueEntry(proto.ID, printable.Cost));
+        ent.Comp.Queue.Add(new DropshipFabricatorQueueEntry(proto.ID, price));
         Dirty(ent);
         TryStartNextPrint(ent);
 
-        _core.CreateARESLog(ent, LogCat, (string)$"{Name(args.Actor)} printed {proto.Name} for {printable.Cost} points at the dropship lathe");
+        _core.CreateARESLog(ent, LogCat, (string)$"{Name(args.Actor)} printed {proto.Name} for {price} points at the dropship lathe");
+
+        if (_net.IsServer) //logi
+        {
+            Log.Info($"{ToPrettyString(actor)} printed {proto.ID} for {price} points " +
+                     $"(base {printable.Cost}, increment {printable.PriceIncrement}, " +
+                     $"purchase #{points.Purchases[proto.ID]}, balance left {points.Points})");
+        } //logi end
+    }
+
+    // Server: reads the source of truth on the points component
+    public int GetPrice(DropshipFabricatorPointsComponent points, EntProtoId id, DropshipFabricatorPrintableComponent printable)
+    {
+        points.Purchases.TryGetValue(id, out var count);
+        return printable.Cost + printable.PriceIncrement * count;
+    }
+
+    // Client: reads the mirrored copy on the fabricator
+    public int GetPrice(DropshipFabricatorComponent fabricator, EntProtoId id, DropshipFabricatorPrintableComponent printable)
+    {
+        fabricator.Purchases.TryGetValue(id, out var count);
+        return printable.Cost + printable.PriceIncrement * count;
     }
 
     private void OnCancelQueueMsg(Entity<DropshipFabricatorComponent> ent, ref DropshipFabricatorCancelQueueMsg args)
@@ -139,10 +164,11 @@ public sealed class DropshipFabricatorSystem : EntitySystem
 
         var entry = ent.Comp.Queue[args.Index];
         ent.Comp.Queue.RemoveAt(args.Index);
-
         if (TryComp(ent.Comp.Account, out DropshipFabricatorPointsComponent? points))
         {
             points.Points += entry.Cost;
+            if (points.Purchases.TryGetValue(entry.Id, out var count))
+                points.Purchases[entry.Id] = Math.Max(0, count - 1);
             Dirty(ent.Comp.Account.Value, points);
             SendUIStateAll(points.Points);
         }
@@ -238,6 +264,10 @@ public sealed class DropshipFabricatorSystem : EntitySystem
         while (fabricatorQuery.MoveNext(out var fabricatorId, out var fabricator))
         {
             fabricator.Points = points;
+
+            if (TryComp(fabricator.Account, out DropshipFabricatorPointsComponent? account))
+                fabricator.Purchases = new Dictionary<EntProtoId, int>(account.Purchases);
+
             Dirty(fabricatorId, fabricator);
         }
     }

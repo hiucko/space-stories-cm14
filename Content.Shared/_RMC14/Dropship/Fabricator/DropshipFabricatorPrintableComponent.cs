@@ -11,6 +11,9 @@ public sealed partial class DropshipFabricatorPrintableComponent : Component
     [DataField, AutoNetworkedField]
     public int Cost = 50;
 
+    [DataField]
+    public int PriceIncrement = 0;
+
     [DataField, AutoNetworkedField]
     public float RecycleMultiplier = 0.8f;
 
