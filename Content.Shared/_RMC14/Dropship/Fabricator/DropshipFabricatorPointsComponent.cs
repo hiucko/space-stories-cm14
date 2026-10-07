@@ -1,5 +1,6 @@
 ﻿using Robust.Shared.GameStates;
 using Robust.Shared.Serialization.TypeSerializers.Implementations.Custom;
+using Robust.Shared.Prototypes;
 
 namespace Content.Shared._RMC14.Dropship.Fabricator;
 
@@ -12,4 +13,7 @@ public sealed partial class DropshipFabricatorPointsComponent : Component
 
     [DataField(customTypeSerializer: typeof(TimeOffsetSerializer)), AutoNetworkedField, AutoPausedField]
     public TimeSpan NextPointsAt;
+
+    [DataField, AutoNetworkedField]
+    public Dictionary<EntProtoId, int> Purchases = new();
 }

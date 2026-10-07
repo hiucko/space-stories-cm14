@@ -28,13 +28,15 @@ public sealed class DropshipFabricatorBui : BoundUserInterface
         _system = EntMan.System<DropshipFabricatorSystem>();
     }
 
+    private readonly Dictionary<EntProtoId<DropshipFabricatorPrintableComponent>, Button> _printButtons = new();
+
     protected override void Open()
     {
         base.Open();
         _window = this.CreateWindow<DropshipFabricatorWindow>();
+        _printButtons.Clear();
         _window.EquipmentLabel.SetMarkupPermissive(Loc.GetString("rmc-dropship-fabricator-equipment"));
         _window.AmmoLabel.SetMarkupPermissive(Loc.GetString("rmc-dropship-fabricator-ammo"));
-
         Refresh();
 
         foreach (var id in _system.Printables)
@@ -52,13 +54,17 @@ public sealed class DropshipFabricatorBui : BoundUserInterface
             };
             label.SetMarkupPermissive(printableProto.Name);
 
+            var price = printable.Cost;
+            if (EntMan.TryGetComponent(Owner, out DropshipFabricatorComponent? fabricator))
+                price = EntMan.System<DropshipFabricatorSystem>().GetPrice(fabricator, id, printable);
             var button = new Button
             {
-                Text = Loc.GetString("rmc-dropship-fabricator-fabricate", ("cost", printable.Cost)),
+                Text = Loc.GetString("rmc-dropship-fabricator-fabricate", ("cost", price)),
                 StyleClasses = { "OpenBoth" },
                 MinWidth = 120
             };
             button.OnPressed += _ => SendPredictedMessage(new DropshipFabricatorPrintMsg(id));
+            _printButtons[id] = button;
 
             var container = new BoxContainer
             {
@@ -90,6 +96,15 @@ public sealed class DropshipFabricatorBui : BoundUserInterface
 
         _window.PointsLabel.Text = Loc.GetString("rmc-dropship-fabricator-points",
             ("points", fabricator.Points));
+
+        foreach (var (id, button) in _printButtons)
+        {
+            if (!id.TryGet(out var printable, _prototypes, _compFactory))
+                continue;
+
+            var price = _system.GetPrice(fabricator, id, printable);
+            button.Text = Loc.GetString("rmc-dropship-fabricator-fabricate", ("cost", price));
+        }
 
         if (fabricator.Printing is { } printing)
         {

@@ -328,6 +328,7 @@
     state: launchable_sentry
   - type: DropshipFabricatorPrintable
     cost: 200
+    priceIncrement: 1000
   - type: PowerLoaderAttachable
     attachableTypes:
     - RMCDropshipUtilityPoint
