@@ -9,6 +9,10 @@
   startingGear: RMCGearSPPSynthetic
   icon: "RMCJobIconSPPSynth"
   joinNotifyCrew: false
+  # Stories-SynthERT-Start
+  whitelisted: true
+  whitelistParent: RMCJobSynthetic
+  # Stories-SynthERT-End
   accessGroups:
   - ShipMasterAccess
   - Synth
@@ -45,7 +49,7 @@
       - Xeno
       firstContactLanguages:
       - Xeno
-      comprehensionThreshold: 0.8
+      comprehensionThreshold: 0.4 # Stories-SynthLanguageThreshold
       learningRange: 8.0
       baseWordLearningRate: 0.05
     - type: CMVendorUser

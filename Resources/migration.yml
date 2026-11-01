@@ -1584,6 +1584,7 @@ ClothingEyesGlassesChemical: RMCGlassesReagentHUDGlasses
 RMCGlassesBiMexYellow: RMCGlassesTriMaxYellow
 RMCGlassesBiMexBronze: RMCGlassesTriMaxBronze
 RMCGlassesBiMexBlack: RMCGlassesTriMaxBlack
+RMCGlassesBiMexPersonal: RMCGlassesTriMaxPersonal # RMC14
 
 # 2025-07-12
 FoamedIronMetal: RMCFoamedIronMetal
@@ -1736,7 +1737,6 @@ ClothingUniformJumpsuitPrisoner: RMCJumpsuitOrange
 RMCJumpsuitUNSecurity: RMCJumpsuitRiotControl
 RMCSpawnPointSurvivorShivasUNPeacekeeper: RMCSpawnPointSurvivorShivasILRCPeacekeeper
 RMCSpawnPointSurvivorSolarisUNPeacekeeper: RMCSpawnPointSurvivorSolarisILRCPeacekeeper
-RMCSpawnPointSurvivorUNPeacekeeper: RMCSpawnPointSurvivorILRCPeacekeeper
 
 # 2026-2-1
 CMPosterZSPA1: RMCPosterTSEPA1
