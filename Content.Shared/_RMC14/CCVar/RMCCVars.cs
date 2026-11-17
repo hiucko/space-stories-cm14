@@ -194,6 +194,12 @@ public sealed partial class RMCCVars : CVars
     public static readonly CVarDef<int> RMCTacticalMapLineLimit =
         CVarDef.Create("rmc.tactical_map_line_limit", 1000, CVar.SERVER | CVar.REPLICATED);
 
+    public static readonly CVarDef<int> RMCTacticalMapLabelLimit =
+        CVarDef.Create("rmc.tactical_map_label_limit", 128, CVar.SERVER | CVar.REPLICATED);
+
+    public static readonly CVarDef<int> RMCTacticalMapLabelLengthLimit =
+        CVarDef.Create("rmc.tactical_map_label_length_limit", 128, CVar.SERVER | CVar.REPLICATED);
+
     public static readonly CVarDef<int> RMCTacticalMapAdminHistorySize =
         CVarDef.Create("rmc.tactical_map_admin_history_size", 100, CVar.SERVER | CVar.REPLICATED);
 
@@ -652,7 +658,7 @@ public sealed partial class RMCCVars : CVars
         CVarDef.Create("rmc.lighting_max_amount_light_nearby_enabled", true, CVar.REPLICATED | CVar.SERVER);
 
     public static readonly CVarDef<float> RMCWeedSpreadMaxProcessTimeMilliseconds =
-        CVarDef.Create("rmc.weed_spread_max_process_time_milliseconds", 1f, CVar.REPLICATED | CVar.SERVER);
+        CVarDef.Create("rmc.weed_spread_max_process_time_milliseconds", 0.25f, CVar.REPLICATED | CVar.SERVER); // Stories-Optimization
 
     public static readonly CVarDef<float> RMCDoAfterCancelMaxProcessTimeMilliseconds =
         CVarDef.Create("rmc.do_after_cancel_max_process_time_milliseconds", 1f, CVar.REPLICATED | CVar.SERVER);

@@ -21,6 +21,10 @@ public sealed partial class StoriesThreatAutoDeployerComponent : Component
     [DataField]
     public EntProtoId<IFFFactionComponent> FriendlyFaction = "FactionMarine";
 
+    public readonly HashSet<EntProtoId<IFFFactionComponent>> HermesFriendlyFactions = [];
+
+    public bool HermesControlled;
+
     [DataField]
     public LocId? Announcement = "stories-ares-core-under-attack";
 
@@ -35,6 +39,8 @@ public sealed partial class StoriesThreatAutoDeployerComponent : Component
 
     [DataField(customTypeSerializer: typeof(TimeOffsetSerializer)), AutoPausedField]
     public TimeSpan LastThreat;
+
+    public EntityUid? LastThreatTarget;
 
     [DataField]
     public bool PendingAnnouncement;

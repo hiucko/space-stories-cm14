@@ -1,4 +1,4 @@
-﻿using Content.Shared._RMC14.Scaling;
+using Content.Shared._RMC14.Scaling;
 using Robust.Shared.GameStates;
 using Robust.Shared.Serialization;
 using Robust.Shared.Serialization.TypeSerializers.Implementations.Custom;
@@ -18,12 +18,25 @@ public enum RequisitionsBlackMarketStatus
 public sealed partial class RequisitionsAccountComponent : Component
 {
     [DataField]
+    public int MaxRequests = 100;
+
+    public int NextRequestNumber = 1;
+
+    public readonly List<RequisitionsRequest> Requests = new();
+
+    [DataField]
     [Access(typeof(SharedRequisitionsSystem), typeof(ScalingSystem))]
     public bool Started;
 
     [DataField]
     [Access(typeof(SharedRequisitionsSystem), typeof(ScalingSystem))]
     public int Balance;
+
+    /// <summary>
+    /// Percentage of paid requisitions returned for their shipping containers and approved invoices.
+    /// </summary>
+    [DataField]
+    public double ShipmentReturnPercent = 9.7;
 
     [DataField(customTypeSerializer: typeof(TimeOffsetSerializer)), AutoPausedField]
     public TimeSpan NextGain;

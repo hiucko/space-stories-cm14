@@ -17,7 +17,7 @@ rmc-xeno-fury-increase-user = Нас одолевает ярость!
 rmc-xeno-psychic-whisper-message = Психический шёпот для { $target }.
 rmc-xeno-psychic-whisper-sent = Мы шепчем { $target }.
 rmc-xeno-psychic-target-unknown = этому разуму
-rmc-xeno-psychic-radiance-message = Излучить psychic сообщение.
+rmc-xeno-psychic-radiance-message = Излучить психическое сообщение.
 rmc-xeno-psychic-radiance-no-targets = Рядом нет разумов, которым можно передать излучение.
 rmc-xeno-psychic-radiance-sent = Мы излучаем свои мысли ближайшим разумам: { $count }.
 rmc-xeno-psychic-give-order-message = Отдать приказ { $target }.
@@ -87,6 +87,8 @@ rmc-xeno-evolution-raffle-missed = Мы не успели подготовить
 rmc-xeno-evolution-raffle-blocked-lower = Место открылось для нас, но в улье уже слишком много сестёр ранга { $tier } и выше — одна должна пасть или должно открыться место для ранга { $tier }, прежде чем мы сможем подняться напрямую.
 rmc-xeno-evolution-tab-evolve = Эволюция
 rmc-xeno-evolution-tab-raffle = Лотерея
+rmc-xeno-evolution-path-title = Выберите путь эволюции
+rmc-xeno-evolution-raffle-queued = В очереди: { $target } ({ $path })
 
 # Insight
 rmc-xeno-insight-empower = Мы получили достаточно проницательности относительно нашей добычи, чтобы усилить наше следующее размещение ловушек!

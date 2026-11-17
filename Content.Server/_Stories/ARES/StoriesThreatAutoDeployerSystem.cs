@@ -5,15 +5,20 @@ using Content.Shared._RMC14.Weapons.Ranged.IFF;
 using Content.Shared._RMC14.Xenonids;
 using Content.Shared._RMC14.Xenonids.Construction;
 using Content.Shared._RMC14.Xenonids.Weeds;
+using Content.Shared._Stories.Hermes;
 using Content.Shared.Examine;
 using Content.Shared.GameTicking;
 using Content.Shared.Mobs.Systems;
+using Robust.Shared.Containers;
+using Robust.Shared.Map;
+using Robust.Shared.Prototypes;
 using Robust.Shared.Timing;
 
 namespace Content.Server._Stories.ARES;
 
 public sealed class StoriesThreatAutoDeployerSystem : EntitySystem
 {
+    [Dependency] private readonly SharedContainerSystem _container = default!;
     [Dependency] private readonly SharedRMCEquipmentDeployerSystem _deployer = default!;
     [Dependency] private readonly ExamineSystemShared _examine = default!;
     [Dependency] private readonly GunIFFSystem _iff = default!;
@@ -21,8 +26,13 @@ public sealed class StoriesThreatAutoDeployerSystem : EntitySystem
     [Dependency] private readonly MarineAnnounceSystem _marineAnnounce = default!;
     [Dependency] private readonly MobStateSystem _mobState = default!;
     [Dependency] private readonly IGameTiming _timing = default!;
+    [Dependency] private readonly SharedTransformSystem _transform = default!;
 
-    private readonly HashSet<EntityUid> _nearby = new();
+    private readonly HashSet<Entity<XenoComponent>> _xenos = new();
+    private readonly HashSet<Entity<UserIFFComponent>> _iffUsers = new();
+    private readonly HashSet<Entity<XenoConstructComponent>> _constructs = new();
+    private readonly HashSet<Entity<XenoWeedsComponent>> _weeds = new();
+    private readonly HashSet<EntProtoId<IFFFactionComponent>> _factions = new();
     private TimeSpan _nextAnnouncement;
 
     public override void Initialize()
@@ -33,6 +43,11 @@ public sealed class StoriesThreatAutoDeployerSystem : EntitySystem
     private void OnRoundRestartCleanup(RoundRestartCleanupEvent ev)
     {
         _nextAnnouncement = TimeSpan.Zero;
+        _xenos.Clear();
+        _iffUsers.Clear();
+        _constructs.Clear();
+        _weeds.Clear();
+        _factions.Clear();
     }
 
     public override void Update(float frameTime)
@@ -41,10 +56,26 @@ public sealed class StoriesThreatAutoDeployerSystem : EntitySystem
         var query = EntityQueryEnumerator<StoriesThreatAutoDeployerComponent, RMCEquipmentDeployerComponent>();
         while (query.MoveNext(out var uid, out var auto, out var deployer))
         {
-            if (now < auto.NextCheck)
+            if (now < auto.NextCheck || TerminatingOrDeleted(uid))
                 continue;
 
             auto.NextCheck = now + auto.CheckInterval;
+
+            if (TryComp(uid, out HermesSentryComponent? sentry) && sentry.LockedDown)
+            {
+                auto.PendingAnnouncement = false;
+                if (!deployer.IsDeployed)
+                    _deployer.TryDeploy(uid, true, equipmentDeployerComponent: deployer);
+                continue;
+            }
+
+            if (deployer.IsDeployed && now < auto.LastThreat + auto.RetractDelay)
+            {
+                if (auto.PendingAnnouncement)
+                    Announce((uid, auto), now);
+
+                continue;
+            }
 
             if (HasThreat((uid, auto)))
             {
@@ -69,16 +100,39 @@ public sealed class StoriesThreatAutoDeployerSystem : EntitySystem
 
     private bool HasThreat(Entity<StoriesThreatAutoDeployerComponent> ent)
     {
-        _nearby.Clear();
-        _lookup.GetEntitiesInRange(ent.Owner, ent.Comp.Range, _nearby, LookupFlags.Uncontained);
+        if (ent.Comp.LastThreatTarget is { } previous &&
+            !TerminatingOrDeleted(previous) &&
+            !_container.IsEntityOrParentInContainer(previous) &&
+            IsThreat(ent, previous) &&
+            _examine.InRangeUnOccluded(ent.Owner, previous, ent.Comp.Range))
+            return true;
 
-        foreach (var target in _nearby)
+        ent.Comp.LastThreatTarget = null;
+        var coordinates = _transform.GetMapCoordinates(ent.Owner);
+        return HasThreat(ent, coordinates, _xenos) ||
+               HasThreat(ent, coordinates, _iffUsers) ||
+               HasThreat(ent, coordinates, _constructs) ||
+               HasThreat(ent, coordinates, _weeds);
+    }
+
+    private bool HasThreat<T>(Entity<StoriesThreatAutoDeployerComponent> ent, MapCoordinates coordinates,
+        HashSet<Entity<T>> targets) where T : IComponent
+    {
+        targets.Clear();
+        // The visibility check below also checks distance, so fixture overlap tests are unnecessary.
+        _lookup.GetEntitiesInRange(coordinates, ent.Comp.Range, targets,
+            LookupFlags.Uncontained | LookupFlags.Approximate);
+
+        foreach (var target in targets)
         {
-            if (!IsThreat(ent, target))
+            if (target.Owner == ent.Owner || TerminatingOrDeleted(target) || !IsThreat(ent, target))
                 continue;
 
             if (_examine.InRangeUnOccluded(ent.Owner, target, ent.Comp.Range))
+            {
+                ent.Comp.LastThreatTarget = target;
                 return true;
+            }
         }
 
         return false;
@@ -92,10 +146,30 @@ public sealed class StoriesThreatAutoDeployerSystem : EntitySystem
         if (HasComp<XenoComponent>(target))
             return !_mobState.IsDead(target);
 
-        if (HasComp<UserIFFComponent>(target))
-            return !_mobState.IsDead(target) && !_iff.IsInFaction(target, ent.Comp.FriendlyFaction);
+        if (TryComp(target, out UserIFFComponent? user))
+        {
+            if (_mobState.IsDead(target))
+                return false;
+
+            _iff.TryGetFactions((target, user), _factions);
+            if (!ent.Comp.HermesControlled)
+                return !_factions.Contains(ent.Comp.FriendlyFaction);
+
+            return !_factions.Overlaps(ent.Comp.HermesFriendlyFactions);
+        }
 
         return false;
+    }
+
+    public void SetFriendlyFactions(Entity<StoriesThreatAutoDeployerComponent> ent, HashSet<string> factions)
+    {
+        ent.Comp.HermesControlled = true;
+        ent.Comp.HermesFriendlyFactions.Clear();
+        foreach (var faction in factions)
+        {
+            if (Content.Shared._RMC14.Sentry.SharedSentryTargetingSystem.SentryFactionToIff.TryGetValue(faction, out var iff))
+                ent.Comp.HermesFriendlyFactions.Add(iff);
+        }
     }
 
     private void Announce(Entity<StoriesThreatAutoDeployerComponent> ent, TimeSpan now)

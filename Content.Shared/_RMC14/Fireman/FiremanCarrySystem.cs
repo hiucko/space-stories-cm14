@@ -4,6 +4,7 @@ using Content.Shared._RMC14.Pulling;
 using Content.Shared._RMC14.Sprite;
 using Content.Shared._RMC14.Xenonids;
 using Content.Shared._Stories.Synth; // Stories-SynthGrip
+using Content.Shared._Stories.ZLevels.Pulling;
 using Content.Shared.ActionBlocker;
 using Content.Shared.DoAfter;
 using Content.Shared.DragDrop;
@@ -24,7 +25,11 @@ using Content.Shared.Stunnable;
 using Content.Shared.Strip;
 using Content.Shared.Throwing;
 using Content.Shared.Whitelist;
+using Robust.Shared.Map;
+using Robust.Shared.Physics;
+using Robust.Shared.Physics.Components;
 using Robust.Shared.Physics.Events;
+using Robust.Shared.Physics.Systems;
 using Robust.Shared.Player;
 using Robust.Shared.Timing;
 
@@ -36,6 +41,7 @@ public sealed class FiremanCarrySystem : EntitySystem
     [Dependency] private readonly SharedDoAfterSystem _doAfter = default!;
     [Dependency] private readonly SharedHandsSystem _hands = default!;
     [Dependency] private readonly MovementSpeedModifierSystem _movementSpeed = default!;
+    [Dependency] private readonly SharedPhysicsSystem _physics = default!; // Stories-ZLevels
     [Dependency] private readonly SharedPopupSystem _popup = default!;
     [Dependency] private readonly RMCPullingSystem _rmcPulling = default!;
     [Dependency] private readonly SharedRMCSpriteSystem _rmcSprite = default!;
@@ -70,6 +76,7 @@ public sealed class FiremanCarrySystem : EntitySystem
         SubscribeLocalEvent<CanFiremanCarryComponent, CanDropTargetEvent>(OnCarrierCanDropTarget);
         SubscribeLocalEvent<CanFiremanCarryComponent, PullStartedMessage>(OnCarrierPullStarted);
         SubscribeLocalEvent<CanFiremanCarryComponent, PullStoppedMessage>(OnCarrierPullStopped);
+        SubscribeLocalEvent<CanFiremanCarryComponent, StopPullingAlertEvent>(OnCarrierStopPullingAlert); // Stories-ZLevels
         SubscribeLocalEvent<CanFiremanCarryComponent, PullSlowdownAttemptEvent>(OnCarrierPullSlowdownAttempt);
         SubscribeLocalEvent<CanFiremanCarryComponent, MobStateChangedEvent>(OnCarrierMobStateChanged);
         SubscribeLocalEvent<CanFiremanCarryComponent, RMCPullToggleEvent>(OnCarrierPullToggle);
@@ -318,11 +325,24 @@ public sealed class FiremanCarrySystem : EntitySystem
         ent.Comp.BeingCarried = false;
         RemCompDeferred<BeingFiremanCarriedComponent>(ent);
 
-        if (!_rmcPulling.IsBeingPulled(ent.Owner, out var puller))
-            return;
+        // Stories-ZLevels-Start
+        EntityUid? puller = null;
+        if (_rmcPulling.IsBeingPulled(ent.Owner, out var p))
+            puller = p;
+        else if (Transform(ent.Owner).ParentUid is { } parent && TryComp<CanFiremanCarryComponent>(parent, out var carrier) && carrier.Carrying == ent.Owner)
+            puller = parent;
 
-        StopCarry(puller, (ent, ent));
-        var selfMsg = Loc.GetString("rmc-pull-break-finish-self", ("puller", puller));
+        if (puller == null)
+        {
+            _transform.AttachToGridOrMap(ent);
+            _standing.Stand(ent);
+            _actionBlocker.UpdateCanMove(ent);
+            return;
+        }
+        // Stories-ZLevels-End
+
+        StopCarry(puller.Value, (ent, ent));
+        var selfMsg = Loc.GetString("rmc-pull-break-finish-self", ("puller", puller.Value));
         _popup.PopupClient(selfMsg, ent, ent, PopupType.MediumCaution);
 
         var others = Filter.PvsExcept(ent, entityManager: EntityManager);
@@ -331,7 +351,7 @@ public sealed class FiremanCarrySystem : EntitySystem
             if (other.AttachedEntity is not { } recipient)
                 continue;
 
-            var pullerName = Identity.Name(puller, EntityManager, recipient);
+            var pullerName = Identity.Name(puller.Value, EntityManager, recipient);
             var pulledName = Identity.Name(ent, EntityManager, recipient);
             var msg = Loc.GetString("rmc-pull-break-finish-others", ("puller", pullerName), ("pulled", pulledName));
             _popup.PopupEntity(msg, ent, recipient, PopupType.MediumCaution);
@@ -370,14 +390,28 @@ public sealed class FiremanCarrySystem : EntitySystem
     private void OnCarrierPullStarted(Entity<CanFiremanCarryComponent> ent, ref PullStartedMessage args)
     {
         if (ent.Owner == args.PullerUid)
+        {
             StopPull(ent, args.PulledUid);
+        }
     }
 
     private void OnCarrierPullStopped(Entity<CanFiremanCarryComponent> ent, ref PullStoppedMessage args)
     {
         if (ent.Owner == args.PullerUid)
+        {
             StopPull(ent, args.PulledUid);
+        }
     }
+
+    // Stories-ZLevels-Start
+    private void OnCarrierStopPullingAlert(Entity<CanFiremanCarryComponent> ent, ref StopPullingAlertEvent args)
+    {
+        if (ent.Comp.Carrying is { } carrying && Exists(carrying))
+        {
+            StopPull(ent, carrying);
+        }
+    }
+    // Stories-ZLevels-End
 
     private void OnCarrierPullSlowdownAttempt(Entity<CanFiremanCarryComponent> ent, ref PullSlowdownAttemptEvent args)
     {
@@ -518,8 +552,10 @@ public sealed class FiremanCarrySystem : EntitySystem
 
             RemCompDeferred<BeingFiremanCarriedComponent>(target);
 
-            if (carrying == target)
+            // Stories-ZLevels-Start
+            if (user.Comp != null && user.Owner != target.Owner && (carrying == target || Transform(target).ParentUid == user.Owner))
                 _toReparent.Add((target, user));
+            // Stories-ZLevels-End
         }
 
         _standing.Stand(target);
@@ -542,21 +578,30 @@ public sealed class FiremanCarrySystem : EntitySystem
                 if (TerminatingOrDeleted(target))
                     continue;
 
-                if (TerminatingOrDeleted(carrier))
+                if (TerminatingOrDeleted(carrier) || carrier == target) // Stories-ZLevels
                 {
                     var coordinates = _transform.GetMoverCoordinates(target);
                     if (TerminatingOrDeleted(coordinates.EntityId))
                         continue;
 
                     _transform.SetCoordinates(target, coordinates);
+                    _transform.AttachToGridOrMap(target);
                     continue;
                 }
 
-                var parent = _transform.GetMoverCoordinates(target).EntityId;
-                if (target == parent)
-                    continue;
+                // Stories-ZLevels-Start
+                var mapCoords = _transform.GetMapCoordinates(carrier);
+                if (mapCoords.MapId != MapId.Nullspace)
+                    _transform.SetMapCoordinates(target, mapCoords);
 
-                _transform.SetParent(target, parent);
+                _transform.AttachToGridOrMap(target);
+
+                if (TryComp<PhysicsComponent>(target, out var targetPhysics) && targetPhysics.BodyType != BodyType.Static)
+                {
+                    _physics.WakeBody(target, body: targetPhysics);
+                    _physics.SetAwake(target, targetPhysics, true);
+                }
+                // Stories-ZLevels-End
             }
         }
         finally
